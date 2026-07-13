@@ -1,0 +1,24 @@
+# 炎火云 NextChat 部署（优先用官方镜像试效果；后续可改为 build: . 用本仓库源码）
+# 使用：cp .env.yanhua.example .env && docker compose -f docker-compose.yanhua.yml up -d
+services:
+  nextchat:
+    image: yidadaa/chatgpt-next-web:latest
+    container_name: nextchat
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      # 访问密码（网页里输入）；可改 .env
+      - CODE=${CODE:-nextchat-mio}
+      # 默认走机内 CPA 网关（OpenAI 兼容）；不带 /v1
+      - BASE_URL=${BASE_URL:-http://host.docker.internal:8317}
+      # 可空：在网页设置里填 API Key 测不同站点；若写死服务端 Key 则填 OPENAI_API_KEY
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      # 0/空 = 允许用户在页面自填 Key 与自定义接口（方便测站）
+      - HIDE_USER_API_KEY=${HIDE_USER_API_KEY:-}
+      - CUSTOM_MODELS=${CUSTOM_MODELS:-}
+      - DEFAULT_MODEL=${DEFAULT_MODEL:-}
+      - DISABLE_GPT4=${DISABLE_GPT4:-}
+      - ENABLE_BALANCE_QUERY=${ENABLE_BALANCE_QUERY:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
