@@ -37,6 +37,7 @@ import {
 } from "../api";
 import Locale from "../../locales";
 import { getClientConfig } from "@/app/config/client";
+import { SITE_CONFIG } from "@/app/config/site";
 import {
   getMessageTextContent,
   isVisionModel,
@@ -80,7 +81,8 @@ export interface DalleRequestPayload {
 }
 
 export class ChatGPTApi implements LLMApi {
-  private disableListModels = true;
+  // 自用：启动时从 CPA /v1/models 拉全量模型
+  private disableListModels = false;
 
   path(path: string): string {
     const accessStore = useAccessStore.getState();
@@ -88,7 +90,10 @@ export class ChatGPTApi implements LLMApi {
     let baseUrl = "";
 
     const isAzure = path.includes("deployments");
-    if (accessStore.useCustomConfig) {
+    // 强制服务端代理时，忽略浏览器自定义接口（避免 host.docker.internal 在手机/电脑失效）
+    const allowCustom =
+      accessStore.useCustomConfig && !SITE_CONFIG.forceServerProxy;
+    if (allowCustom) {
       if (isAzure && !accessStore.isValidAzure()) {
         throw Error(
           "incomplete azure config, please check it in your settings page",
@@ -499,36 +504,44 @@ export class ChatGPTApi implements LLMApi {
       return DEFAULT_MODELS.slice();
     }
 
-    const res = await fetch(this.path(OpenaiPath.ListModelPath), {
-      method: "GET",
-      headers: {
-        ...getHeaders(),
-      },
-    });
+    try {
+      const res = await fetch(this.path(OpenaiPath.ListModelPath), {
+        method: "GET",
+        headers: {
+          ...getHeaders(),
+        },
+      });
 
-    const resJson = (await res.json()) as OpenAIListModelResponse;
-    const chatModels = resJson.data?.filter(
-      (m) => m.id.startsWith("gpt-") || m.id.startsWith("chatgpt-"),
-    );
-    console.log("[Models]", chatModels);
+      if (!res.ok) {
+        console.error("[Models] fetch failed", res.status, await res.text());
+        return DEFAULT_MODELS.slice();
+      }
 
-    if (!chatModels) {
-      return [];
+      const resJson = (await res.json()) as OpenAIListModelResponse;
+      // CPA / 兼容网关：返回全部模型，不再只保留 gpt-*
+      const remoteModels = resJson.data ?? [];
+      console.log("[Models] remote count=", remoteModels.length);
+
+      if (!remoteModels.length) {
+        return DEFAULT_MODELS.slice();
+      }
+
+      return remoteModels.map((m, i) => ({
+        name: m.id,
+        displayName: m.id,
+        available: true,
+        sorted: 1000 + i,
+        provider: {
+          id: "openai",
+          providerName: "OpenAI",
+          providerType: "openai",
+          sorted: 1,
+        },
+      }));
+    } catch (e) {
+      console.error("[Models] error", e);
+      return DEFAULT_MODELS.slice();
     }
-
-    //由于目前 OpenAI 的 disableListModels 默认为 true，所以当前实际不会运行到这场
-    let seq = 1000; //同 Constant.ts 中的排序保持一致
-    return chatModels.map((m) => ({
-      name: m.id,
-      available: true,
-      sorted: seq++,
-      provider: {
-        id: "openai",
-        providerName: "OpenAI",
-        providerType: "openai",
-        sorted: 1,
-      },
-    }));
   }
 }
 export { OpenaiPath };

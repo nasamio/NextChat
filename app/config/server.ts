@@ -1,6 +1,7 @@
 import md5 from "spark-md5";
 import { DEFAULT_MODELS, DEFAULT_GA_ID } from "../constant";
 import { isGPT4Model } from "../utils/model";
+import { SITE_CONFIG } from "./site";
 
 declare global {
   namespace NodeJS {
@@ -138,7 +139,8 @@ export const getServerSideConfig = () => {
 
   const disableGPT4 = !!process.env.DISABLE_GPT4;
   let customModels = process.env.CUSTOM_MODELS ?? "";
-  let defaultModel = process.env.DEFAULT_MODEL ?? "";
+  let defaultModel =
+    process.env.DEFAULT_MODEL ?? SITE_CONFIG.preferredDefaultModel ?? "";
   let visionModels = process.env.VISION_MODELS ?? "";
 
   if (disableGPT4) {
@@ -181,7 +183,7 @@ export const getServerSideConfig = () => {
   ).split(",");
 
   return {
-    baseUrl: process.env.BASE_URL,
+    baseUrl: process.env.BASE_URL || SITE_CONFIG.serverBaseUrl,
     apiKey: getApiKey(process.env.OPENAI_API_KEY),
     openaiOrgId: process.env.OPENAI_ORG_ID,
 

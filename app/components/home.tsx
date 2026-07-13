@@ -11,7 +11,7 @@ import LoadingIcon from "../icons/three-dots.svg";
 import { getCSSVar, useMobileScreen } from "../utils";
 
 import dynamic from "next/dynamic";
-import { Path, SlotID } from "../constant";
+import { ModelProvider, Path, ServiceProvider, SlotID } from "../constant";
 import { ErrorBoundary } from "./error";
 
 import { getISOLang, getLang } from "../locales";
@@ -28,6 +28,7 @@ import { AuthPage } from "./auth";
 import { getClientConfig } from "../config/client";
 import { type ClientApi, getClientApi } from "../client/api";
 import { useAccessStore } from "../store";
+import { SITE_CONFIG } from "../config/site";
 import clsx from "clsx";
 import { initializeMcpSystem, isMcpEnabled } from "../mcp/actions";
 
@@ -223,13 +224,54 @@ function Screen() {
 export function useLoadData() {
   const config = useAppConfig();
 
-  const api: ClientApi = getClientApi(config.modelConfig.providerName);
-
   useEffect(() => {
-    (async () => {
-      const models = await api.llm.models();
-      config.mergeModels(models);
-    })();
+    let cancelled = false;
+    let timer: ReturnType<typeof setInterval> | undefined;
+
+    const loadModels = async () => {
+      try {
+        // 始终用 OpenAI 兼容通道拉 CPA /v1/models（经服务端 BASE_URL 代理）
+        const api: ClientApi = getClientApi(ModelProvider.GPT);
+        const models = await api.llm.models();
+        if (cancelled || !models?.length) return;
+
+        config.mergeModels(models);
+        console.log("[Models] merged", models.length);
+
+        const preferred = SITE_CONFIG.preferredDefaultModel;
+        const hasPreferred = models.some((m) => m.name === preferred);
+        if (hasPreferred) {
+          config.update((c) => {
+            if (
+              !models.some((m) => m.name === c.modelConfig.model) ||
+              c.modelConfig.model === "gpt-4o-mini"
+            ) {
+              c.modelConfig.model = preferred as any;
+              c.modelConfig.providerName = ServiceProvider.OpenAI;
+            }
+          });
+        }
+      } catch (e) {
+        console.error("[Models] load failed", e);
+      }
+    };
+
+    // 等 access 配置就绪后再拉（需要访问码头）
+    const kick = () => {
+      loadModels();
+      if (SITE_CONFIG.modelsRefreshMs > 0) {
+        timer = setInterval(loadModels, SITE_CONFIG.modelsRefreshMs);
+      }
+    };
+
+    // 短延迟，让 accessStore.fetch 先完成
+    const boot = setTimeout(kick, 400);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(boot);
+      if (timer) clearInterval(timer);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 }
@@ -242,6 +284,13 @@ export function Home() {
   useEffect(() => {
     console.log("[Config] got config from build time", getClientConfig());
     useAccessStore.getState().fetch();
+
+    // 强制走服务端代理，清掉各设备上误存的自定义接口
+    if (SITE_CONFIG.forceServerProxy) {
+      useAccessStore.setState({
+        useCustomConfig: false,
+      });
+    }
 
     const initMcp = async () => {
       try {

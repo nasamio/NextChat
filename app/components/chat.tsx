@@ -118,6 +118,7 @@ import { getClientConfig } from "../config/client";
 import { useAllModels } from "../utils/hooks";
 import { ClientApi, MultimodalContent } from "../client/api";
 import { createTTSPlayer } from "../utils/audio";
+import { SITE_CONFIG } from "../config/site";
 import { MsEdgeTTS, OUTPUT_FORMAT } from "../utils/ms_edge_tts";
 
 import { isEmpty } from "lodash-es";
@@ -1033,6 +1034,25 @@ function _Chat() {
   const navigate = useNavigate();
   const [attachImages, setAttachImages] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [showHeaderModelSelector, setShowHeaderModelSelector] = useState(false);
+  const allModelsForHeader = useAllModels();
+  const headerModels = useMemo(
+    () => allModelsForHeader.filter((m) => m.available),
+    [allModelsForHeader],
+  );
+  const headerModelDisplay = useMemo(() => {
+    const name = session.mask.modelConfig.model;
+    const provider =
+      session.mask.modelConfig.providerName || ServiceProvider.OpenAI;
+    const hit = headerModels.find(
+      (m) => m.name === name && m?.provider?.providerName === provider,
+    );
+    return hit?.displayName || name || "选择模型";
+  }, [
+    headerModels,
+    session.mask.modelConfig.model,
+    session.mask.modelConfig.providerName,
+  ]);
 
   // prompt hints
   const promptStore = usePromptStore();
@@ -1712,6 +1732,50 @@ function _Chat() {
               {Locale.Chat.SubTitle(session.messages.length)}
             </div>
           </div>
+
+          {/* 醒目当前模型 + 点击切换 */}
+          <button
+            type="button"
+            className={styles["model-badge"]}
+            title="点击切换模型"
+            onClick={() => setShowHeaderModelSelector(true)}
+          >
+            <span className={styles["model-badge-label"]}>
+              {SITE_CONFIG.upstreamLabel}
+            </span>
+            <span className={styles["model-badge-name"]}>
+              {headerModelDisplay}
+            </span>
+            <span className={styles["model-badge-action"]}>切换 ▾</span>
+          </button>
+          {showHeaderModelSelector && (
+            <Selector
+              defaultSelectedValue={`${session.mask.modelConfig.model}@${
+                session.mask.modelConfig.providerName || ServiceProvider.OpenAI
+              }`}
+              items={headerModels.map((m) => ({
+                title: m.displayName || m.name,
+                value: `${m.name}@${m?.provider?.providerName || "OpenAI"}`,
+              }))}
+              onClose={() => setShowHeaderModelSelector(false)}
+              onSelection={(s) => {
+                if (s.length === 0) return;
+                const [model, providerName] = getModelProvider(s[0]);
+                chatStore.updateTargetSession(session, (session) => {
+                  session.mask.modelConfig.model = model as ModelType;
+                  session.mask.modelConfig.providerName =
+                    providerName as ServiceProvider;
+                  session.mask.syncGlobalConfig = false;
+                });
+                config.update((c) => {
+                  c.modelConfig.model = model as ModelType;
+                  c.modelConfig.providerName = providerName as ServiceProvider;
+                });
+                showToast(`已切换：${model}`);
+              }}
+            />
+          )}
+
           <div className="window-actions">
             <div className="window-action-button">
               <IconButton
