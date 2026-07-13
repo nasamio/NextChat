@@ -11,7 +11,7 @@ import LoadingIcon from "../icons/three-dots.svg";
 import { getCSSVar, useMobileScreen } from "../utils";
 
 import dynamic from "next/dynamic";
-import { ModelProvider, Path, ServiceProvider, SlotID } from "../constant";
+import { Path, ServiceProvider, SlotID } from "../constant";
 import { ErrorBoundary } from "./error";
 
 import { getISOLang, getLang } from "../locales";
@@ -231,7 +231,7 @@ export function useLoadData() {
     const loadModels = async () => {
       try {
         // 始终用 OpenAI 兼容通道拉 CPA /v1/models（经服务端 BASE_URL 代理）
-        const api: ClientApi = getClientApi(ModelProvider.GPT);
+        const api: ClientApi = getClientApi(ServiceProvider.OpenAI);
         const models = await api.llm.models();
         if (cancelled || !models?.length) return;
 
