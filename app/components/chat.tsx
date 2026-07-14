@@ -1733,15 +1733,20 @@ function _Chat() {
             </div>
           </div>
 
-          {/* 醒目当前模型 + 点击切换 */}
+          {/* 醒目当前模型 + 点击切换（列表=上游全量） */}
           <button
             type="button"
             className={styles["model-badge"]}
-            title="点击切换模型"
+            title={
+              headerModels.length
+                ? `上游共 ${headerModels.length} 个模型，点击切换`
+                : "正在从上游加载模型…"
+            }
             onClick={() => setShowHeaderModelSelector(true)}
           >
             <span className={styles["model-badge-label"]}>
               {SITE_CONFIG.upstreamLabel}
+              {headerModels.length > 0 ? ` · ${headerModels.length}` : ""}
             </span>
             <span className={styles["model-badge-name"]}>
               {headerModelDisplay}

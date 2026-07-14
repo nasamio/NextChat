@@ -62,6 +62,10 @@ export const DEFAULT_CONFIG = {
 
   customModels: "",
   models: DEFAULT_MODELS as any as LLMModel[],
+  /** 上游真实模型 ID 列表（仅 forceServerProxy 时用于 UI） */
+  upstreamModelIds: [] as string[],
+  upstreamModelsLoaded: false,
+  upstreamModelsError: "" as string,
 
   modelConfig: {
     model: "gpt-5.5" as ModelType,
@@ -193,26 +197,39 @@ export const useAppConfig = createPersistStore(
 
     /** 仅使用上游真实列表，丢弃内置 DEFAULT_MODELS */
     replaceWithUpstreamModels(newModels: LLMModel[]) {
-      if (!newModels || newModels.length === 0) {
-        // 空列表：全部标为不可用，避免继续展示内置假列表
+      const ids = (newModels || []).map((m) => m.name).filter(Boolean);
+      if (!ids.length) {
         set(() => ({
           models: get().models.map((m) => ({ ...m, available: false })),
+          upstreamModelIds: [],
+          upstreamModelsLoaded: true,
         }));
         return;
       }
+      const mapped = ids.map((id, i) => ({
+        name: id,
+        displayName: id,
+        available: true,
+        sorted: 1000 + i,
+        provider: {
+          id: "openai",
+          providerName: "OpenAI",
+          providerType: "openai",
+          sorted: 1,
+        },
+      }));
       set(() => ({
-        models: newModels.map((m, i) => ({
-          ...m,
-          available: true,
-          sorted: m.sorted ?? 1000 + i,
-          displayName: m.displayName || m.name,
-          provider: m.provider || {
-            id: "openai",
-            providerName: "OpenAI",
-            providerType: "openai",
-            sorted: 1,
-          },
-        })),
+        models: mapped as any,
+        upstreamModelIds: ids,
+        upstreamModelsLoaded: true,
+        upstreamModelsError: "",
+      }));
+    },
+
+    setUpstreamModelsError(msg: string) {
+      set(() => ({
+        upstreamModelsError: msg,
+        upstreamModelsLoaded: true,
       }));
     },
 
@@ -220,20 +237,21 @@ export const useAppConfig = createPersistStore(
   }),
   {
     name: StoreKey.Config,
-    version: 4.1,
+    version: 4.2,
 
     merge(persistedState, currentState) {
       const state = persistedState as ChatConfig | undefined;
       if (!state) return { ...currentState };
-      const models = currentState.models.slice();
-      state.models.forEach((pModel) => {
-        const idx = models.findIndex(
-          (v) => v.name === pModel.name && v.provider === pModel.provider,
-        );
-        if (idx !== -1) models[idx] = pModel;
-        else models.push(pModel);
-      });
-      return { ...currentState, ...state, models: models };
+      // 自用部署：不恢复本地缓存的 models，避免内置列表覆盖上游
+      const { models: _ignored, upstreamModelIds: _u, ...rest } = state as any;
+      return {
+        ...currentState,
+        ...rest,
+        models: currentState.models,
+        upstreamModelIds: currentState.upstreamModelIds ?? [],
+        upstreamModelsLoaded: false,
+        upstreamModelsError: "",
+      };
     },
 
     migrate(persistedState, version) {

@@ -225,19 +225,20 @@ export function useLoadData() {
   const config = useAppConfig();
   const accessCode = useAccessStore((s) => s.accessCode);
   const needCode = useAccessStore((s) => s.needCode);
+  const accessHydrated = useAccessStore((s) => s._hasHydrated);
+  const configHydrated = useAppConfig((s) => s._hasHydrated);
 
   useEffect(() => {
     let cancelled = false;
     let timer: ReturnType<typeof setInterval> | undefined;
 
-    // 先禁用内置模型列表，避免误显示官方默认模型
-    if (SITE_CONFIG.forceServerProxy) {
-      config.replaceWithUpstreamModels([]);
+    // 等本地 store 恢复完再拉，避免 accessCode 还是空就请求失败
+    if (!accessHydrated || !configHydrated) {
+      return;
     }
 
     const loadModels = async () => {
       try {
-        // 需要访问密码时，等用户输入后再拉
         if (needCode && !accessCode?.trim()) {
           console.log("[Models] skip: waiting for access code");
           return;
@@ -247,26 +248,32 @@ export function useLoadData() {
         const models = await api.llm.models();
         if (cancelled) return;
 
-        // 只用上游真实列表（失败则为空，不再 merge 内置模型）
-        config.replaceWithUpstreamModels(models);
-        console.log("[Models] upstream applied", models.length);
+        if (!models.length) {
+          config.setUpstreamModelsError("上游未返回模型（请检查 CPA / 访问密码）");
+          config.replaceWithUpstreamModels([]);
+          console.warn("[Models] empty upstream list");
+          return;
+        }
 
-        if (!models.length) return;
+        config.replaceWithUpstreamModels(models);
+        console.log("[Models] upstream applied", models.length, models.map((m) => m.name));
 
         const preferred = SITE_CONFIG.preferredDefaultModel;
-        const hasPreferred = models.some((m) => m.name === preferred);
-        const currentOk = models.some((m) => m.name === config.modelConfig.model);
+        const ids = models.map((m) => m.name);
+        const hasPreferred = ids.includes(preferred);
+        const currentOk = ids.includes(config.modelConfig.model);
 
         config.update((c) => {
           if (!currentOk) {
             c.modelConfig.model = (
-              hasPreferred ? preferred : models[0].name
+              hasPreferred ? preferred : ids[0]
             ) as any;
             c.modelConfig.providerName = ServiceProvider.OpenAI;
           }
         });
-      } catch (e) {
+      } catch (e: any) {
         console.error("[Models] load failed", e);
+        config.setUpstreamModelsError(e?.message || String(e));
       }
     };
 
@@ -279,9 +286,8 @@ export function useLoadData() {
       cancelled = true;
       if (timer) clearInterval(timer);
     };
-    // accessCode 变化（登录后）会重新拉上游
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accessCode, needCode]);
+  }, [accessCode, needCode, accessHydrated, configHydrated]);
 }
 
 export function Home() {
