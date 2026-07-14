@@ -223,57 +223,65 @@ function Screen() {
 
 export function useLoadData() {
   const config = useAppConfig();
+  const accessCode = useAccessStore((s) => s.accessCode);
+  const needCode = useAccessStore((s) => s.needCode);
 
   useEffect(() => {
     let cancelled = false;
     let timer: ReturnType<typeof setInterval> | undefined;
 
+    // 先禁用内置模型列表，避免误显示官方默认模型
+    if (SITE_CONFIG.forceServerProxy) {
+      config.replaceWithUpstreamModels([]);
+    }
+
     const loadModels = async () => {
       try {
-        // 始终用 OpenAI 兼容通道拉 CPA /v1/models（经服务端 BASE_URL 代理）
+        // 需要访问密码时，等用户输入后再拉
+        if (needCode && !accessCode?.trim()) {
+          console.log("[Models] skip: waiting for access code");
+          return;
+        }
+
         const api: ClientApi = getClientApi(ServiceProvider.OpenAI);
         const models = await api.llm.models();
-        if (cancelled || !models?.length) return;
+        if (cancelled) return;
 
-        config.mergeModels(models);
-        console.log("[Models] merged", models.length);
+        // 只用上游真实列表（失败则为空，不再 merge 内置模型）
+        config.replaceWithUpstreamModels(models);
+        console.log("[Models] upstream applied", models.length);
+
+        if (!models.length) return;
 
         const preferred = SITE_CONFIG.preferredDefaultModel;
         const hasPreferred = models.some((m) => m.name === preferred);
-        if (hasPreferred) {
-          config.update((c) => {
-            if (
-              !models.some((m) => m.name === c.modelConfig.model) ||
-              c.modelConfig.model === "gpt-4o-mini"
-            ) {
-              c.modelConfig.model = preferred as any;
-              c.modelConfig.providerName = ServiceProvider.OpenAI;
-            }
-          });
-        }
+        const currentOk = models.some((m) => m.name === config.modelConfig.model);
+
+        config.update((c) => {
+          if (!currentOk) {
+            c.modelConfig.model = (
+              hasPreferred ? preferred : models[0].name
+            ) as any;
+            c.modelConfig.providerName = ServiceProvider.OpenAI;
+          }
+        });
       } catch (e) {
         console.error("[Models] load failed", e);
       }
     };
 
-    // 等 access 配置就绪后再拉（需要访问码头）
-    const kick = () => {
-      loadModels();
-      if (SITE_CONFIG.modelsRefreshMs > 0) {
-        timer = setInterval(loadModels, SITE_CONFIG.modelsRefreshMs);
-      }
-    };
-
-    // 短延迟，让 accessStore.fetch 先完成
-    const boot = setTimeout(kick, 400);
+    loadModels();
+    if (SITE_CONFIG.modelsRefreshMs > 0) {
+      timer = setInterval(loadModels, SITE_CONFIG.modelsRefreshMs);
+    }
 
     return () => {
       cancelled = true;
-      clearTimeout(boot);
       if (timer) clearInterval(timer);
     };
+    // accessCode 变化（登录后）会重新拉上游
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [accessCode, needCode]);
 }
 
 export function Home() {

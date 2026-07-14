@@ -501,29 +501,46 @@ export class ChatGPTApi implements LLMApi {
 
   async models(): Promise<LLMModel[]> {
     if (this.disableListModels) {
-      return DEFAULT_MODELS.slice();
+      return [];
     }
 
     try {
-      const res = await fetch(this.path(OpenaiPath.ListModelPath), {
+      // 专用上游接口：服务端用 BASE_URL + OPENAI_API_KEY 拉真实 /v1/models
+      // 失败时返回空数组，绝不回退到内置 DEFAULT_MODELS
+      const res = await fetch("/api/upstream-models", {
         method: "GET",
         headers: {
           ...getHeaders(),
         },
+        cache: "no-store",
       });
 
-      if (!res.ok) {
-        console.error("[Models] fetch failed", res.status, await res.text());
-        return DEFAULT_MODELS.slice();
+      const resJson = (await res.json()) as OpenAIListModelResponse & {
+        error?: boolean;
+        message?: string;
+        source?: string;
+        count?: number;
+      };
+
+      if (!res.ok || resJson.error) {
+        console.error(
+          "[Models] upstream fetch failed",
+          res.status,
+          resJson?.message || resJson,
+        );
+        return [];
       }
 
-      const resJson = (await res.json()) as OpenAIListModelResponse;
-      // CPA / 兼容网关：返回全部模型，不再只保留 gpt-*
       const remoteModels = resJson.data ?? [];
-      console.log("[Models] remote count=", remoteModels.length);
+      console.log(
+        "[Models] upstream source=",
+        resJson.source,
+        "count=",
+        remoteModels.length,
+      );
 
       if (!remoteModels.length) {
-        return DEFAULT_MODELS.slice();
+        return [];
       }
 
       return remoteModels.map((m, i) => ({
@@ -540,7 +557,7 @@ export class ChatGPTApi implements LLMApi {
       }));
     } catch (e) {
       console.error("[Models] error", e);
-      return DEFAULT_MODELS.slice();
+      return [];
     }
   }
 }

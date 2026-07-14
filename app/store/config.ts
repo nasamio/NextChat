@@ -191,6 +191,31 @@ export const useAppConfig = createPersistStore(
       }));
     },
 
+    /** 仅使用上游真实列表，丢弃内置 DEFAULT_MODELS */
+    replaceWithUpstreamModels(newModels: LLMModel[]) {
+      if (!newModels || newModels.length === 0) {
+        // 空列表：全部标为不可用，避免继续展示内置假列表
+        set(() => ({
+          models: get().models.map((m) => ({ ...m, available: false })),
+        }));
+        return;
+      }
+      set(() => ({
+        models: newModels.map((m, i) => ({
+          ...m,
+          available: true,
+          sorted: m.sorted ?? 1000 + i,
+          displayName: m.displayName || m.name,
+          provider: m.provider || {
+            id: "openai",
+            providerName: "OpenAI",
+            providerType: "openai",
+            sorted: 1,
+          },
+        })),
+      }));
+    },
+
     allModels() {},
   }),
   {
