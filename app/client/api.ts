@@ -96,6 +96,7 @@ export interface LLMModel {
   available: boolean;
   provider: LLMModelProvider;
   sorted: number;
+  isDefault?: boolean;
 }
 
 export interface LLMModelProvider {
