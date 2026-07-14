@@ -1,4 +1,5 @@
 import { getClientConfig } from "../config/client";
+import { SITE_CONFIG } from "../config/site";
 import {
   ACCESS_CODE_PREFIX,
   ModelProvider,
@@ -349,6 +350,17 @@ export function getHeaders(ignoreHeaders: boolean = false) {
   if (isBaidu && clientConfig?.isApp) return headers;
 
   const authHeader = getAuthHeader();
+
+  // 自用强制服务端代理：绝不带浏览器本地 API Key（会触发 HIDE_USER_API_KEY 拒绝）
+  // 只带访问码，由服务端注入 OPENAI_API_KEY
+  if (SITE_CONFIG.forceServerProxy) {
+    if (validString(accessStore.accessCode)) {
+      headers["Authorization"] = getBearerToken(
+        ACCESS_CODE_PREFIX + accessStore.accessCode.trim(),
+      );
+    }
+    return headers;
+  }
 
   const bearerToken = getBearerToken(
     apiKey,

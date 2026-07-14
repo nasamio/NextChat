@@ -274,10 +274,14 @@ export function Home() {
     console.log("[Config] got config from build time", getClientConfig());
     useAccessStore.getState().fetch();
 
-    // 强制走服务端代理，清掉各设备上误存的自定义接口
+    // 强制走服务端代理：清掉本地自定义接口 / 残留 API Key（否则聊天会被 HIDE_USER_API_KEY 拒绝）
     if (SITE_CONFIG.forceServerProxy) {
       useAccessStore.setState({
         useCustomConfig: false,
+        openaiApiKey: "",
+        azureApiKey: "",
+        googleApiKey: "",
+        anthropicApiKey: "",
       });
     }
 
