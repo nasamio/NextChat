@@ -1,10 +1,16 @@
 /**
- * 炎火云 / 自用部署写死配置
+ * 炎火云 / MioChat 自用部署写死配置
  * - 上游在服务端 env：BASE_URL + OPENAI_API_KEY（容器内连 CPA）
  * - 浏览器只访问本站 /api/openai，禁止自定义接口直连 host.docker.internal
  */
 export const SITE_CONFIG = {
-  /** 强制走 NextChat 服务端代理，忽略页面「自定义接口」 */
+  /** 产品名（侧栏 / meta / 导出预览） */
+  brandName: "MioChat",
+
+  /** 品牌副标题（固定中文） */
+  brandTagline: "构建属于你自己的AI助手",
+
+  /** 强制走服务端代理，忽略页面「自定义接口」 */
   forceServerProxy: true,
 
   /**

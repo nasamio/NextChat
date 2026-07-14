@@ -9,10 +9,10 @@ import { GoogleTagManager, GoogleAnalytics } from "@next/third-parties/google";
 import { getServerSideConfig } from "./config/server";
 
 export const metadata: Metadata = {
-  title: "NextChat",
-  description: "Your personal ChatGPT Chat Bot.",
+  title: "MioChat",
+  description: "构建属于你自己的AI助手",
   appleWebApp: {
-    title: "NextChat",
+    title: "MioChat",
     statusBarStyle: "default",
   },
 };
@@ -22,8 +22,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#fafafa" },
-    { media: "(prefers-color-scheme: dark)", color: "#151515" },
+    { media: "(prefers-color-scheme: light)", color: "#f5f3ff" },
+    { media: "(prefers-color-scheme: dark)", color: "#0f1117" },
   ],
 };
 

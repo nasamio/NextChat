@@ -1,7 +1,6 @@
 import { getClientConfig } from "../config/client";
 import { SubmitKey } from "../store/config";
 import { LocaleType } from "./index";
-import { SAAS_CHAT_UTM_URL } from "@/app/constant";
 // if you are adding a new translation, please use PartialLocaleType instead of LocaleType
 
 const isApp = !!getClientConfig()?.isApp;
@@ -10,12 +9,12 @@ const en: LocaleType = {
   Error: {
     Unauthorized: isApp
       ? `😆 Oops, there's an issue. No worries:
-     \\ 1️⃣ New here? [Click to start chatting now 🚀](${SAAS_CHAT_UTM_URL})
-     \\ 2️⃣ Want to use your own OpenAI resources? [Click here](/#/settings) to change settings ⚙️`
+     \\ 1️⃣ Check your access code and model settings ⚙️
+     \\ 2️⃣ Contact the administrator if it still fails`
       : `😆 Oops, there's an issue. Let's fix it:
-     \ 1️⃣ New here? [Click to start chatting now 🚀](${SAAS_CHAT_UTM_URL})
-     \ 2️⃣ Using a private setup? [Click here](/#/auth) to enter your key 🔑
-     \ 3️⃣ Want to use your own OpenAI resources? [Click here](/#/settings) to change settings ⚙️
+     \ 1️⃣ [Enter access code](/#/auth) 🔑
+     \ 2️⃣ Make sure a valid model is selected
+     \ 3️⃣ Need more options? [Open settings](/#/settings) ⚙️
      `,
   },
   Auth: {
@@ -27,8 +26,7 @@ const en: LocaleType = {
     Confirm: "Confirm",
     Later: "Later",
     SaasTips: "Too Complex, Use Immediately Now",
-    TopTips:
-      "🥳 NextChat AI launch promotion: Instantly unlock the latest models like OpenAI o1, GPT-4o, Claude-3.5!",
+    TopTips: "Welcome to MioChat · 构建属于你自己的AI助手",
   },
   ChatItem: {
     ChatItemCount: (count: number) => `${count} messages`,
@@ -315,12 +313,11 @@ const en: LocaleType = {
     },
     Access: {
       SaasStart: {
-        Title: "Use NextChat AI",
-        Label: " (Most Cost-Effective Option)",
+        Title: "MioChat (self-hosted)",
+        Label: "",
         SubTitle:
-          "Maintained by NextChat, zero setup needed, unlock OpenAI o1, GPT-4o," +
-          " Claude-3.5 and more",
-        ChatNow: "Start Now",
+          "This is a private deployment. Use your access code — no external SaaS.",
+        ChatNow: "Continue",
       },
       AccessCode: {
         Title: "Access Code",

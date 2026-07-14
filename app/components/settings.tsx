@@ -1816,7 +1816,7 @@ export function Settings() {
         </List>
 
         <List id={SlotID.CustomModel}>
-          {saasStartComponent}
+          {/* SaaS 入口已禁用（MioChat 私有部署） */}
           {accessCodeComponent}
 
           {!accessStore.hideUserApiKey && (

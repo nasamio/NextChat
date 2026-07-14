@@ -1,6 +1,5 @@
 import { getClientConfig } from "../config/client";
 import { SubmitKey } from "../store/config";
-import { SAAS_CHAT_UTM_URL } from "@/app/constant";
 
 const isApp = !!getClientConfig()?.isApp;
 
@@ -9,12 +8,12 @@ const cn = {
   Error: {
     Unauthorized: isApp
       ? `😆 对话遇到了一些问题，不用慌:
-       \\ 1️⃣ 想要零配置开箱即用，[点击这里立刻开启对话 🚀](${SAAS_CHAT_UTM_URL})
-       \\ 2️⃣ 如果你想消耗自己的 OpenAI 资源，点击[这里](/#/settings)修改设置 ⚙️`
+       \\ 1️⃣ 请在设置中确认访问密码与模型配置 ⚙️
+       \\ 2️⃣ 若仍无法使用，请联系管理员`
       : `😆 对话遇到了一些问题，不用慌:
-       \ 1️⃣ 想要零配置开箱即用，[点击这里立刻开启对话 🚀](${SAAS_CHAT_UTM_URL})
-       \ 2️⃣ 如果你正在使用私有部署版本，点击[这里](/#/auth)输入访问秘钥 🔑
-       \ 3️⃣ 如果你想消耗自己的 OpenAI 资源，点击[这里](/#/settings)修改设置 ⚙️
+       \ 1️⃣ 请[点击这里](/#/auth)输入访问密码 🔑
+       \ 2️⃣ 确认已选择可用的模型后再试
+       \ 3️⃣ 需要调整设置时，[点这里打开设置](/#/settings) ⚙️
        `,
   },
   Auth: {
@@ -26,8 +25,7 @@ const cn = {
     Confirm: "确认",
     Later: "稍后再说",
     SaasTips: "配置太麻烦，想要立即使用",
-    TopTips:
-      "🥳 NextChat AI 首发优惠，立刻解锁 OpenAI o1, GPT-4o, Claude-3.5 等最新大模型",
+    TopTips: "欢迎使用 MioChat · 构建属于你自己的AI助手",
   },
   ChatItem: {
     ChatItemCount: (count: number) => `${count} 条对话`,
@@ -312,11 +310,10 @@ const cn = {
 
     Access: {
       SaasStart: {
-        Title: "使用 NextChat AI",
-        Label: "（性价比最高的方案）",
-        SubTitle:
-          "由 NextChat 官方维护, 零配置开箱即用，支持 OpenAI o1, GPT-4o, Claude-3.5 等最新大模型",
-        ChatNow: "立刻对话",
+        Title: "MioChat 私有部署",
+        Label: "",
+        SubTitle: "本实例为自托管服务，请使用访问密码登录，无需外部 SaaS",
+        ChatNow: "继续",
       },
       AccessCode: {
         Title: "访问密码",
