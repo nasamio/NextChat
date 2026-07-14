@@ -11,7 +11,7 @@ import LoadingIcon from "../icons/three-dots.svg";
 import { getCSSVar, useMobileScreen } from "../utils";
 
 import dynamic from "next/dynamic";
-import { Path, ServiceProvider, SlotID } from "../constant";
+import { Path, SlotID } from "../constant";
 import { ErrorBoundary } from "./error";
 
 import { getISOLang, getLang } from "../locales";
@@ -26,9 +26,9 @@ import { SideBar } from "./sidebar";
 import { useAppConfig } from "../store/config";
 import { AuthPage } from "./auth";
 import { getClientConfig } from "../config/client";
-import { type ClientApi, getClientApi } from "../client/api";
 import { useAccessStore } from "../store";
 import { SITE_CONFIG } from "../config/site";
+import { fetchAndApplyUpstreamModels } from "../utils/upstream-models";
 import clsx from "clsx";
 import { initializeMcpSystem, isMcpEnabled } from "../mcp/actions";
 
@@ -243,37 +243,12 @@ export function useLoadData() {
           console.log("[Models] skip: waiting for access code");
           return;
         }
-
-        const api: ClientApi = getClientApi(ServiceProvider.OpenAI);
-        const models = await api.llm.models();
+        const { ids, error } = await fetchAndApplyUpstreamModels();
         if (cancelled) return;
-
-        if (!models.length) {
-          config.setUpstreamModelsError("上游未返回模型（请检查 CPA / 访问密码）");
-          config.replaceWithUpstreamModels([]);
-          console.warn("[Models] empty upstream list");
-          return;
-        }
-
-        config.replaceWithUpstreamModels(models);
-        console.log("[Models] upstream applied", models.length, models.map((m) => m.name));
-
-        const preferred = SITE_CONFIG.preferredDefaultModel;
-        const ids = models.map((m) => m.name);
-        const hasPreferred = ids.includes(preferred);
-        const currentOk = ids.includes(config.modelConfig.model);
-
-        config.update((c) => {
-          if (!currentOk) {
-            c.modelConfig.model = (
-              hasPreferred ? preferred : ids[0]
-            ) as any;
-            c.modelConfig.providerName = ServiceProvider.OpenAI;
-          }
-        });
+        if (error) console.warn("[Models]", error);
+        else console.log("[Models] boot load ok", ids.length);
       } catch (e: any) {
         console.error("[Models] load failed", e);
-        config.setUpstreamModelsError(e?.message || String(e));
       }
     };
 

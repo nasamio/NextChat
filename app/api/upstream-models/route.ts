@@ -9,12 +9,23 @@ import { ModelProvider } from "@/app/constant";
  * 浏览器只打本接口，不直连 CPA。
  */
 export async function GET(req: NextRequest) {
-  const authResult = auth(req, ModelProvider.GPT);
-  if (authResult.error) {
-    return NextResponse.json(authResult, { status: 401 });
-  }
-
   const serverConfig = getServerSideConfig();
+  // 有服务端 Key 时：允许仅用访问码；访问码错误才 401
+  // 若请求带 nk- 访问码则校验；未带码但已配置 CODE 时也允许（单机自用，避免前端码不同步导致空列表）
+  const authHeader = req.headers.get("Authorization") ?? "";
+  const hasClientAuth = authHeader.trim().length > 0;
+  if (hasClientAuth) {
+    const authResult = auth(req, ModelProvider.GPT);
+    if (authResult.error) {
+      return NextResponse.json(authResult, { status: 401 });
+    }
+  } else if (serverConfig.needCode && !serverConfig.apiKey) {
+    return NextResponse.json(
+      { error: true, msg: "empty access code" },
+      { status: 401 },
+    );
+  }
+  // 自用：无客户端 Authorization 时，只要服务端配了 OPENAI_API_KEY 就放行拉模型
   let baseUrl = (serverConfig.baseUrl || SITE_CONFIG.serverBaseUrl).trim();
   if (!baseUrl.startsWith("http")) {
     baseUrl = `https://${baseUrl}`;

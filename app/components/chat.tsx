@@ -119,6 +119,7 @@ import { useAllModels } from "../utils/hooks";
 import { ClientApi, MultimodalContent } from "../client/api";
 import { createTTSPlayer } from "../utils/audio";
 import { SITE_CONFIG } from "../config/site";
+import { fetchAndApplyUpstreamModels } from "../utils/upstream-models";
 import { MsEdgeTTS, OUTPUT_FORMAT } from "../utils/ms_edge_tts";
 
 import { isEmpty } from "lodash-es";
@@ -1035,24 +1036,46 @@ function _Chat() {
   const [attachImages, setAttachImages] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [showHeaderModelSelector, setShowHeaderModelSelector] = useState(false);
+  const [headerModelLoading, setHeaderModelLoading] = useState(false);
+  const [headerModelError, setHeaderModelError] = useState("");
+  const [selectorModelIds, setSelectorModelIds] = useState<string[]>([]);
   const allModelsForHeader = useAllModels();
   const headerModels = useMemo(
     () => allModelsForHeader.filter((m) => m.available),
     [allModelsForHeader],
   );
+  const upstreamCount =
+    config.upstreamModelIds?.length || headerModels.length || 0;
   const headerModelDisplay = useMemo(() => {
     const name = session.mask.modelConfig.model;
-    const provider =
-      session.mask.modelConfig.providerName || ServiceProvider.OpenAI;
-    const hit = headerModels.find(
-      (m) => m.name === name && m?.provider?.providerName === provider,
-    );
-    return hit?.displayName || name || "选择模型";
-  }, [
-    headerModels,
-    session.mask.modelConfig.model,
-    session.mask.modelConfig.providerName,
-  ]);
+    return name || "选择模型";
+  }, [session.mask.modelConfig.model]);
+
+  const openHeaderModelSelector = async () => {
+    setShowHeaderModelSelector(true);
+    setHeaderModelError("");
+    // 先用 store 里已有的
+    const cached = config.upstreamModelIds || [];
+    if (cached.length) {
+      setSelectorModelIds(cached);
+    }
+    // 每次打开都强制从上游刷新，避免灰屏空列表
+    setHeaderModelLoading(true);
+    try {
+      const { ids, error } = await fetchAndApplyUpstreamModels();
+      if (error) {
+        setHeaderModelError(error);
+      }
+      setSelectorModelIds(ids);
+      if (!ids.length && !error) {
+        setHeaderModelError("上游模型列表为空");
+      }
+    } catch (e: any) {
+      setHeaderModelError(e?.message || String(e));
+    } finally {
+      setHeaderModelLoading(false);
+    }
+  };
 
   // prompt hints
   const promptStore = usePromptStore();
@@ -1738,15 +1761,17 @@ function _Chat() {
             type="button"
             className={styles["model-badge"]}
             title={
-              headerModels.length
-                ? `上游共 ${headerModels.length} 个模型，点击切换`
-                : "正在从上游加载模型…"
+              upstreamCount
+                ? `上游共 ${upstreamCount} 个模型，点击切换`
+                : "点击从上游加载模型列表"
             }
-            onClick={() => setShowHeaderModelSelector(true)}
+            onClick={() => {
+              openHeaderModelSelector();
+            }}
           >
             <span className={styles["model-badge-label"]}>
               {SITE_CONFIG.upstreamLabel}
-              {headerModels.length > 0 ? ` · ${headerModels.length}` : ""}
+              {upstreamCount > 0 ? ` · ${upstreamCount}` : ""}
             </span>
             <span className={styles["model-badge-name"]}>
               {headerModelDisplay}
@@ -1754,31 +1779,93 @@ function _Chat() {
             <span className={styles["model-badge-action"]}>切换 ▾</span>
           </button>
           {showHeaderModelSelector && (
-            <Selector
-              defaultSelectedValue={`${session.mask.modelConfig.model}@${
-                session.mask.modelConfig.providerName || ServiceProvider.OpenAI
-              }`}
-              items={headerModels.map((m) => ({
-                title: m.displayName || m.name,
-                value: `${m.name}@${m?.provider?.providerName || "OpenAI"}`,
-              }))}
-              onClose={() => setShowHeaderModelSelector(false)}
-              onSelection={(s) => {
-                if (s.length === 0) return;
-                const [model, providerName] = getModelProvider(s[0]);
-                chatStore.updateTargetSession(session, (session) => {
-                  session.mask.modelConfig.model = model as ModelType;
-                  session.mask.modelConfig.providerName =
-                    providerName as ServiceProvider;
-                  session.mask.syncGlobalConfig = false;
-                });
-                config.update((c) => {
-                  c.modelConfig.model = model as ModelType;
-                  c.modelConfig.providerName = providerName as ServiceProvider;
-                });
-                showToast(`已切换：${model}`);
-              }}
-            />
+            <div
+              className={styles["model-picker-mask"]}
+              onClick={() => setShowHeaderModelSelector(false)}
+            >
+              <div
+                className={styles["model-picker-panel"]}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className={styles["model-picker-title"]}>
+                  选择模型
+                  <span className={styles["model-picker-sub"]}>
+                    {headerModelLoading
+                      ? "正在从上游加载…"
+                      : selectorModelIds.length
+                        ? `共 ${selectorModelIds.length} 个（CPA）`
+                        : "无数据"}
+                  </span>
+                  <button
+                    type="button"
+                    className={styles["model-picker-close"]}
+                    onClick={() => setShowHeaderModelSelector(false)}
+                  >
+                    ✕
+                  </button>
+                </div>
+                {headerModelLoading && (
+                  <div className={styles["model-picker-status"]}>
+                    加载中，请稍候…
+                  </div>
+                )}
+                {!!headerModelError && !headerModelLoading && (
+                  <div className={styles["model-picker-error"]}>
+                    {headerModelError}
+                    <button
+                      type="button"
+                      className={styles["model-picker-retry"]}
+                      onClick={() => openHeaderModelSelector()}
+                    >
+                      重试
+                    </button>
+                  </div>
+                )}
+                {!headerModelLoading && selectorModelIds.length > 0 && (
+                  <div className={styles["model-picker-list"]}>
+                    {selectorModelIds.map((id) => {
+                      const active =
+                        id === session.mask.modelConfig.model;
+                      return (
+                        <button
+                          type="button"
+                          key={id}
+                          className={clsx(styles["model-picker-item"], {
+                            [styles["model-picker-item-active"]]: active,
+                          })}
+                          onClick={() => {
+                            chatStore.updateTargetSession(
+                              session,
+                              (session) => {
+                                session.mask.modelConfig.model =
+                                  id as ModelType;
+                                session.mask.modelConfig.providerName =
+                                  ServiceProvider.OpenAI;
+                                session.mask.syncGlobalConfig = false;
+                              },
+                            );
+                            config.update((c) => {
+                              c.modelConfig.model = id as ModelType;
+                              c.modelConfig.providerName =
+                                ServiceProvider.OpenAI;
+                            });
+                            setShowHeaderModelSelector(false);
+                            showToast(`已切换：${id}`);
+                          }}
+                        >
+                          <span>{id}</span>
+                          {active && (
+                            <span className={styles["model-picker-check"]}>
+                              ✓
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
           )}
 
           <div className="window-actions">
