@@ -591,7 +591,7 @@ export function ChatActions(props: {
       });
       showToast(
         nextModel?.provider?.providerName == "ByteDance"
-          ? nextModel.displayName
+          ? nextModel.displayName || nextModel.name
           : nextModel.name,
       );
     }
