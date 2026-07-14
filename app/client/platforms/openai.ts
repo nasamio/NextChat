@@ -506,18 +506,26 @@ export class ChatGPTApi implements LLMApi {
 
     try {
       // 专用上游接口：服务端用 BASE_URL + OPENAI_API_KEY 拉真实 /v1/models
-      // 失败时返回空数组，绝不回退到内置 DEFAULT_MODELS
+      // 注意：不要用 getHeaders()——会带上本地残留 API Key，触发 HIDE_USER_API_KEY 被拒
+      const accessStore = useAccessStore.getState();
+      const headers: Record<string, string> = {
+        Accept: "application/json",
+      };
+      if (accessStore.accessCode?.trim()) {
+        headers["Authorization"] =
+          `Bearer nk-${accessStore.accessCode.trim()}`;
+      }
+
       const res = await fetch("/api/upstream-models", {
         method: "GET",
-        headers: {
-          ...getHeaders(),
-        },
+        headers,
         cache: "no-store",
       });
 
       const resJson = (await res.json()) as OpenAIListModelResponse & {
         error?: boolean;
         message?: string;
+        msg?: string;
         source?: string;
         count?: number;
       };
@@ -526,7 +534,7 @@ export class ChatGPTApi implements LLMApi {
         console.error(
           "[Models] upstream fetch failed",
           res.status,
-          resJson?.message || resJson,
+          resJson?.message || resJson?.msg || resJson,
         );
         return [];
       }

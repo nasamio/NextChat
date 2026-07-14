@@ -10,22 +10,23 @@ import { ModelProvider } from "@/app/constant";
  */
 export async function GET(req: NextRequest) {
   const serverConfig = getServerSideConfig();
-  // 有服务端 Key 时：允许仅用访问码；访问码错误才 401
-  // 若请求带 nk- 访问码则校验；未带码但已配置 CODE 时也允许（单机自用，避免前端码不同步导致空列表）
+  // 自用部署：拉模型列表只用服务端 Key，不依赖浏览器里的 API Key
+  // 客户端若误传 sk-/自定义 Key（本地缓存），忽略即可，避免 HIDE_USER_API_KEY 直接 401
   const authHeader = req.headers.get("Authorization") ?? "";
-  const hasClientAuth = authHeader.trim().length > 0;
-  if (hasClientAuth) {
+  const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+  if (token.startsWith("nk-")) {
     const authResult = auth(req, ModelProvider.GPT);
     if (authResult.error) {
       return NextResponse.json(authResult, { status: 401 });
     }
-  } else if (serverConfig.needCode && !serverConfig.apiKey) {
+  }
+  // 无 nk- 访问码时：只要服务端配置了 OPENAI_API_KEY 就允许列模型（单机自用）
+  if (!serverConfig.apiKey) {
     return NextResponse.json(
-      { error: true, msg: "empty access code" },
-      { status: 401 },
+      { error: true, message: "server OPENAI_API_KEY not configured" },
+      { status: 500 },
     );
   }
-  // 自用：无客户端 Authorization 时，只要服务端配了 OPENAI_API_KEY 就放行拉模型
   let baseUrl = (serverConfig.baseUrl || SITE_CONFIG.serverBaseUrl).trim();
   if (!baseUrl.startsWith("http")) {
     baseUrl = `https://${baseUrl}`;

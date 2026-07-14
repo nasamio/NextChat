@@ -1,4 +1,3 @@
-import { getClientApi } from "../client/api";
 import { ServiceProvider } from "../constant";
 import { useAppConfig } from "../store";
 import { SITE_CONFIG } from "../config/site";
@@ -10,16 +9,53 @@ export async function fetchAndApplyUpstreamModels(): Promise<{
 }> {
   const config = useAppConfig.getState();
   try {
-    const api = getClientApi(ServiceProvider.OpenAI);
-    const models = await api.llm.models();
-    if (!models.length) {
-      const msg = "上游未返回模型（检查访问密码 / CPA）";
+    // 直接请求专用接口，避免 getHeaders 混入本地 API Key
+    const { useAccessStore } = await import("../store");
+    const accessCode = useAccessStore.getState().accessCode?.trim() || "";
+    const headers: Record<string, string> = { Accept: "application/json" };
+    if (accessCode) {
+      headers.Authorization = `Bearer nk-${accessCode}`;
+    }
+
+    const res = await fetch("/api/upstream-models", {
+      method: "GET",
+      headers,
+      cache: "no-store",
+    });
+    const body = await res.json();
+    if (!res.ok || body?.error) {
+      const msg =
+        body?.message ||
+        body?.msg ||
+        `拉取失败 HTTP ${res.status}`;
       config.setUpstreamModelsError(msg);
       config.replaceWithUpstreamModels([]);
       return { ids: [], error: msg };
     }
+
+    const data = Array.isArray(body?.data) ? body.data : [];
+    const ids = data.map((m: any) => m.id || m.name).filter(Boolean);
+    if (!ids.length) {
+      const msg = "上游返回空列表";
+      config.setUpstreamModelsError(msg);
+      config.replaceWithUpstreamModels([]);
+      return { ids: [], error: msg };
+    }
+
+    const models = ids.map((id: string, i: number) => ({
+      name: id,
+      displayName: id,
+      available: true,
+      sorted: 1000 + i,
+      provider: {
+        id: "openai",
+        providerName: "OpenAI",
+        providerType: "openai",
+        sorted: 1,
+      },
+    }));
     config.replaceWithUpstreamModels(models);
-    const ids = models.map((m) => m.name);
+
     const preferred = SITE_CONFIG.preferredDefaultModel;
     const current = config.modelConfig.model;
     if (!ids.includes(current)) {
